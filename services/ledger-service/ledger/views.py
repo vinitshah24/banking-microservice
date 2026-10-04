@@ -33,3 +33,13 @@ class LedgerEntryList(APIView):
    obj=LedgerEntry.objects.filter(pk=pk).first(); return ok(request,LedgerEntrySerializer(obj).data) if obj else fail(request,"ENTRY_NOT_FOUND","Ledger entry was not found",status_code=404)
   from banking_common.pagination import StandardPagination
   qs=LedgerEntry.objects.filter(account__external_account_id=account_id).order_by("-created_at"); p=StandardPagination(); page=p.paginate_queryset(qs,request); return p.get_paginated_response(LedgerEntrySerializer(page,many=True).data)
+
+
+class LedgerBalance(APIView):
+ authentication_classes=[ServiceAuthentication]
+ def get(self,request,account_id):
+  account=LedgerAccount.objects.filter(external_account_id=account_id).first()
+  if not account:return fail(request,"LEDGER_ACCOUNT_NOT_FOUND","Ledger account was not found",status_code=404)
+  from django.db.models import Sum,Case,When,F,DecimalField
+  balance=LedgerEntry.objects.filter(account=account).aggregate(v=Sum(Case(When(direction="CREDIT",then=F("amount")),When(direction="DEBIT",then=-F("amount")),default=0,output_field=DecimalField(max_digits=20,decimal_places=2))))["v"] or Decimal("0")
+  return ok(request,{"account_id":str(account_id),"currency":account.currency,"balance":str(balance)})
