@@ -27,3 +27,24 @@ class AccountDetail(APIView):
   s=AccountSerializer(obj,data=request.data,partial=True)
   if not s.is_valid():return fail(request,"VALIDATION_ERROR","Invalid account data",s.errors)
   return ok(request,AccountSerializer(s.save()).data)
+
+
+class AccountBalance(APIView):
+ def get(self,request,pk):
+  obj=Account.objects.filter(pk=pk).first()
+  if not obj:return fail(request,"ACCOUNT_NOT_FOUND","Account was not found",status_code=404)
+  try:
+   result=call_service(f"http://ledger:8000/internal/v1/ledger/accounts/{pk}/balance","account-service","GET")
+   return ok(request,result.get("data",result))
+  except Exception:
+   return fail(request,"LEDGER_UNAVAILABLE","Could not retrieve balance",status_code=502)
+
+class AccountTransactions(APIView):
+ def get(self,request,pk):
+  obj=Account.objects.filter(pk=pk).first()
+  if not obj:return fail(request,"ACCOUNT_NOT_FOUND","Account was not found",status_code=404)
+  try:
+   result=call_service(f"http://ledger:8000/api/v1/ledger/accounts/{pk}/entries","account-service","GET")
+   return ok(request,result.get("data",[]),meta={"pagination":result.get("meta",{}).get("pagination",{})})
+  except Exception:
+   return fail(request,"LEDGER_UNAVAILABLE","Could not retrieve transactions",status_code=502)
